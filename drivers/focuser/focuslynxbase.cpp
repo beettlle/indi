@@ -1181,7 +1181,7 @@ bool FocusLynxBase::getFocusStatus()
         if (rc == 2)
         {
             TemperatureN[0].value = temperature;
-            IDSetNumber(&TemperatureNP, nullptr);
+            // Don't call IDSetNumber here - we'll validate and update after reading probe status
         }
         else
         {
@@ -1360,6 +1360,25 @@ bool FocusLynxBase::getFocusStatus()
             return false;
 
         StatusL[STATUS_TMPPROBE].s = TmpProbe ? IPS_OK : IPS_IDLE;
+
+        // Now validate the temperature based on probe status
+        if (StatusL[STATUS_TMPPROBE].s != IPS_OK)
+        {
+            TemperatureNP.s = IPS_ALERT;
+            LOG_WARN("Temperature probe not detected. Temperature reading is invalid.");
+        }
+        // If probe is detected, check for an out-of-range value which indicates a fault
+        else if (TemperatureN[0].value < -90.0)
+        {
+            TemperatureNP.s = IPS_ALERT;
+            LOG_WARN("Temperature probe reports an out of range value (%g C). Please check probe connection.",
+                     TemperatureN[0].value);
+        }
+        else
+        {
+            TemperatureNP.s = IPS_OK;
+        }
+        IDSetNumber(&TemperatureNP, nullptr);
 
         // #6 Remote IO?
         memset(response, 0, sizeof(response));
